@@ -52,7 +52,6 @@
 #include "quaternion.h"
 
 #include "gxlib.h"			// low-level render
-#include "g2lib.h"			// gui system
 using namespace glib;
 
 class Sample : public Application {
@@ -523,6 +522,7 @@ void Sample::reshape (int w, int h)
 	glViewport ( 0, 0, w, h );
 	setview2D ( w, h );
 
+  if (m_cam == 0x0) return;
 	m_cam->setAspect(float(w) / float(h));
 	m_cam->SetOrbit(m_cam->getAng(), m_cam->getToPos(), m_cam->getOrbitDist(), m_cam->getDolly());	
 		

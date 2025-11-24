@@ -1,148 +1,68 @@
-cmake_minimum_required(VERSION 2.8)
-set (CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_BINARY_DIR} CACHE PATH "")
+cmake_minimum_required(VERSION 2.8...3.5)
 
-set(PROJNAME Flightsim)
-Project(${PROJNAME})
+set(PROJNAME flightsim )
+Project(${PROJNAME} LANGUAGES C CXX)
+
 Message(STATUS "-------------------------------")
-Message(STATUS "Processing Project ${PROJNAME}:")
+Message(STATUS "Project: ${PROJNAME}")
 
 #####################################################################################
 # LIBMIN Bootstrap
 #
-get_filename_component ( LIBMIN_CMAKES "${CMAKE_CURRENT_SOURCE_DIR}/../libmin/cmake" REALPATH )
-set ( LIBMIN_CMAKES ${LIBMIN_CMAKES} CACHE PATH "")
-list( APPEND CMAKE_MODULE_PATH "${LIBMIN_CMAKES}" )
-list( APPEND CMAKE_PREFIX_PATH "${LIBMIN_CMAKES}" )
+set ( LIBMIN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../libmin" CACHE STRING "Location of Libmin")
+list( APPEND CMAKE_MODULE_PATH "${LIBMIN_ROOT}/cmake" )
+list( APPEND CMAKE_PREFIX_PATH "${LIBMIN_ROOT}/cmake" )
 
-#####################################################################################
-# Include LIBMIN
-#
-find_package(Libmin QUIET)
-
-if (NOT LIBMIN_FOUND)
-
-  Message ( FATAL_ERROR "
-  This project requires libmin. 
-  Set LIBMIN_CMAKES to the libmin repository path for /libmin/cmake.
-  " )
-
-
-else()
-  add_definitions(-DUSE_LIBMIN)  
-  include_directories(${LIBMIN_INC_DIR})
-  include_directories(${LIBRARIES_INC_DIR})  
-
-  if (DEFINED ${BUILD_LIBMIN_STATIC})
-    add_definitions(-DLIBMIN_STATIC) 
-    file(GLOB LIBMIN_SRC "${LIBMIN_SRC_DIR}/*.cpp" )
-    file(GLOB LIBMIN_INC "${LIBMIN_INC_DIR}/*.h" )
-    LIST( APPEND LIBMIN_SOURCE_FILES ${LIBMIN_SRC} ${LIBMIN_INC} )
-    message ( STATUS "  ---> Using LIBMIN (static)")
-  else()    
-    LIST( APPEND LIBRARIES_OPTIMIZED "${LIBMIN_LIB_DIR}/${LIBMIN_REL}")
-    LIST( APPEND LIBRARIES_DEBUG "${LIBMIN_LIB_DIR}/${LIBMIN_DEBUG}")	    
-    _EXPANDLIST( OUTPUT PACKAGE_DLLS SOURCE ${LIBMIN_LIB_DIR} FILES ${LIBMIN_DLLS} )
-    message ( STATUS "  ---> Using LIBMIN")
-  endif() 
-endif()
+find_package(Libmin)
 
 #####################################################################################
 # Options
 
+_REQUIRE_DATAPTR()
+_REQUIRE_IMAGE()
+_REQUIRE_GXLIB()
+_REQUIRE_3D()
+
 _REQUIRE_MAIN()
 
-#--- symbols in release mode
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi" CACHE STRING "" FORCE)
-set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG /OPT:REF /OPT:ICF" CACHE STRING "" FORCE)
+_REQUIRE_GL()
 
-###################################################################################
-# OpenGL & GLEW
-#
-OPTION (BUILD_OPENGL "Build with OpenGL" ON)
-if (BUILD_OPENGL)
-    message ( STATUS "Searching for OpenGL and GLEW.." )
-	find_package(OpenGL)
-	add_definitions(-DUSE_OPENGL)  		# Use OpenGL
-	IF (WIN32)
-	     LIST(APPEND LIBRARIES_OPTIMIZED "opengl32.lib" )
-	     LIST(APPEND LIBRARIES_DEBUG "opengl32.lib" )
-	ENDIF()
-	add_definitions(-DGLEW_STATIC)
-	file(GLOB COMMON_SOURCE_FILES "${LIBMIN_GLEW_DIR}/glew.c" )   # Use GLEW (static)	
-	message ( STATUS "  ---> Using GLEW: ${COMMON_SOURCE_FILES}" )
-endif()
-
-#####################################################################################
-# Asset Path
-#
-if ( NOT DEFINED ASSET_PATH ) 
-   get_filename_component ( _assets "${CMAKE_INSTALL_PREFIX}/assets" REALPATH )
-   set ( ASSET_PATH ${_assets} CACHE PATH "Full path to /assets" )
-   add_definitions( -DASSET_PATH="${ASSET_PATH}/" )
-endif()
-file(GLOB GLSL_FILES ${ASSET_PATH}/*.glsl )
-add_definitions(-DASSET_PATH="${ASSET_PATH}/")
+_REQUIRE_GLEW()
 
 #####################################################################################
 # Executable
 #
-file(GLOB MAIN_FILES *.cpp *.c *.h )
+file(GLOB MAIN_FILES *.cpp *.h )
 
-unset ( ALL_SOURCE_FILES )
+_GET_GLOBALS()
 
-list( APPEND ALL_SOURCE_FILES ${MAIN_FILES} )
-list( APPEND ALL_SOURCE_FILES ${COMMON_SOURCE_FILES} )
-list( APPEND ALL_SOURCE_FILES ${PACKAGE_SOURCE_FILES} )
-list( APPEND ALL_SOURCE_FILES ${UTIL_SOURCE_FILES} )
+add_executable (${PROJNAME} ${MAIN_FILES} ${CUDA_FILES} ${PACKAGE_SOURCE_FILES} ${LIBMIN_FILES})
 
-if ( NOT DEFINED WIN32 )
-    set(libdeps GL GLEW X11)
-  LIST(APPEND LIBRARIES_OPTIMIZED ${libdeps})
-  LIST(APPEND LIBRARIES_DEBUG ${libdeps})
-ENDIF()
-include_directories ("${CMAKE_CURRENT_SOURCE_DIR}")    
-
-add_executable (${PROJNAME} ${ALL_SOURCE_FILES} ${GLSL_FILES} )
-
-set_property ( TARGET ${PROJNAME} APPEND PROPERTY DEPENDS )
-
-#--- debug and release exe
-set ( CMAKE_DEBUG_POSTFIX "d" CACHE STRING "" )
-set_target_properties( ${PROJNAME} PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
+_LINK ( PROJECT ${PROJNAME} OPT ${LIBS_OPTIMIZED} DEBUG ${LIBS_DEBUG} PLATFORM ${LIBS_PLATFORM} )
 
 #####################################################################################
-# Additional Libraries
+# IDE Setup
 #
-_LINK ( PROJECT ${PROJNAME} OPT ${LIBRARIES_OPTIMIZED} DEBUG ${LIBRARIES_DEBUG} PLATFORM ${PLATFORM_LIBRARIES} )
-
-#####################################################################################
-# Windows specific
-#
-_MSVC_PROPERTIES()
-source_group("Source Files" FILES ${MAIN_FILES} ${COMMON_SOURCE_FILES} ${PACKAGE_SOURCE_FILES})
+_STARTUP_PROJECT ()
+source_group("Source Files" FILES ${MAIN_FILES} ${PACKAGE_SOURCE_FILES})
+source_group("CUDA" FILES ${CUDA_FILES} )
 
 #####################################################################################
 # Install Binaries
 #
-#
-_DEFAULT_INSTALL_PATH()
-
-# *NOTE*: file COPY is at cmake-time, not compile-time. Need to replace with add_custom_command -E copy_directory (my own _COPY)
-
-file (COPY "${CMAKE_CURRENT_SOURCE_DIR}/assets" DESTINATION ${CMAKE_INSTALL_PREFIX} )	# assets folder
-_INSTALL ( FILES ${SHADERS} DESTINATION "${CMAKE_INSTALL_PREFIX}/assets" )		# shaders
-_INSTALL ( FILES ${PACKAGE_DLLS} DESTINATION ${CMAKE_INSTALL_PREFIX} )		# DLLs
-install ( FILES $<TARGET_PDB_FILE:${PROJNAME}> DESTINATION ${CMAKE_INSTALL_PREFIX} OPTIONAL )		# PDB
-
-install ( FILES ${INSTALL_LIST} DESTINATION ${CMAKE_INSTALL_PREFIX} )		# exe, pdb
+install_files ( FILES ${PACKAGE_DLLS} DESTINATION . )    	# DLLs
+install ( FILES $<TARGET_PDB_FILE:${PROJNAME}> OPTIONAL DESTINATION .)   	# PDB
+install ( FILES ${INSTALL_LIST} DESTINATION .)				# EXE
 
 ###########################
 # Done
-message ( STATUS "CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}" )
-message ( STATUS "CMAKE_CURRENT_BINARY_DIR: ${CMAKE_CURRENT_BINARY_DIR}" )
-message ( STATUS "-----------------------" )
-message ( "Flightsim Install Location: ${CMAKE_INSTALL_PREFIX}" )
-message ( STATUS "-----------------------" )
+message ( STATUS "  Source Path: ${CMAKE_CURRENT_SOURCE_DIR}" )
+message ( STATUS "  Binary Path: ${CMAKE_CURRENT_BINARY_DIR}" )
+message ( STATUS "  Libs Optimized:   ${LIBS_OPTIMIZED}" )
+message ( STATUS "  Libs Debug:  ${LIBS_DEBUG}" )
+message ( STATUS "  Libs Platform:  ${LIBS_PLATFORM}" )
+message ( STATUS "  Packaged DLLs:   ${PACKAGE_DLLS}" )
+message ( STATUS "  OUTPUT PATH:     ${CMAKE_INSTALL_PREFIX}" )
 
 
 
