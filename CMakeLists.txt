@@ -62,6 +62,7 @@ message ( STATUS "  Libs Optimized:   ${LIBS_OPTIMIZED}" )
 message ( STATUS "  Libs Debug:  ${LIBS_DEBUG}" )
 message ( STATUS "  Libs Platform:  ${LIBS_PLATFORM}" )
 message ( STATUS "  Packaged DLLs:   ${PACKAGE_DLLS}" )
+message ( STATUS "  Asset Path:   ${ASSET_PATH}" )
 message ( STATUS "  OUTPUT PATH:     ${CMAKE_INSTALL_PREFIX}" )
 
 
